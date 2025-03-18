@@ -95,10 +95,3 @@ This script is open-source and free to use. It is provided as-is with no warrant
 By using this script, you can efficiently back up your WordPress sites on aaPanel without the need for a premium plan. Happy backing up!
 ```
 
-### Key sections:
-
-- **Usage instructions**: How to run the script and use the `--ignoredb` flag.
-- **Flow and customizations**: Overview of how the script works and what parts can be customized.
-- **Troubleshooting**: Helps users fix common issues they may encounter while running the script.
-
-Let me know if you want any more changes!
