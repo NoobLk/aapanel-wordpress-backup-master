@@ -10,6 +10,16 @@ SSH_HOST="35.154.153.48"
 DEFAULT_DIR="/www/wwwroot"
 LOCAL_BACKUP_DIR="./backups"
 
+# Parse command-line arguments for --ignoredb
+IGNORE_DB=false
+while [[ "$1" == --* ]]; do
+  case "$1" in
+    --ignoredb) IGNORE_DB=true ;;
+    *) echo "Unknown option: $1" ;;
+  esac
+  shift
+done
+
 # Ask for folder name
 read -p "Enter the folder name: " FOLDER_NAME
 
@@ -34,38 +44,43 @@ ssh -i "$SSH_KEY" "$SSH_USER@$SSH_HOST" << EOF
     exit 1
   fi
 
-  # Find wp-config.php inside the folder
-  WP_CONFIG_PATH=\$(find "$BACKUP_PATH" -name "wp-config.php" | head -n 1)
+  # If --ignoredb is not passed, find wp-config.php and dump the database
+  if [ "$IGNORE_DB" = false ]; then
+    # Find wp-config.php inside the folder
+    WP_CONFIG_PATH=\$(find "$BACKUP_PATH" -name "wp-config.php" | head -n 1)
 
-  if [ -z "\$WP_CONFIG_PATH" ]; then
-    echo "Error: wp-config.php not found!"
-    exit 1
+    if [ -z "\$WP_CONFIG_PATH" ]; then
+      echo "Error: wp-config.php not found!"
+      exit 1
+    fi
+
+    echo "Found wp-config.php at: \$WP_CONFIG_PATH"
+
+    # Extract database details from wp-config.php
+    DB_NAME=\$(grep -oP "define\\( *'DB_NAME', *'\\K[^']+" "\$WP_CONFIG_PATH")
+    DB_USER=\$(grep -oP "define\\( *'DB_USER', *'\\K[^']+" "\$WP_CONFIG_PATH")
+    DB_PASS=\$(grep -oP "define\\( *'DB_PASSWORD', *'\\K[^']+" "\$WP_CONFIG_PATH")
+
+    if [[ -z "\$DB_NAME" || -z "\$DB_USER" || -z "\$DB_PASS" ]]; then
+      echo "Error: Could not extract database details!"
+      exit 1
+    fi
+
+    echo "Database Name: \$DB_NAME"
+    echo "Dumping database \$DB_NAME..."
+
+    # Dump the database safely
+    mysqldump --single-transaction --quick --no-tablespaces -u"\$DB_USER" -p"\$DB_PASS" "\$DB_NAME" > "$BACKUP_PATH/$SQL_DUMP_FILE"
+
+    if [[ ! -f "$BACKUP_PATH/$SQL_DUMP_FILE" ]]; then
+      echo "Error: Failed to dump database!"
+      exit 1
+    fi
+
+    echo "Database dump created: $BACKUP_PATH/$SQL_DUMP_FILE"
+  else
+    echo "Skipping database dump as --ignoredb is passed."
   fi
-
-  echo "Found wp-config.php at: \$WP_CONFIG_PATH"
-
-  # Extract database details from wp-config.php
-  DB_NAME=\$(grep -oP "define\\( *'DB_NAME', *'\\K[^']+" "\$WP_CONFIG_PATH")
-  DB_USER=\$(grep -oP "define\\( *'DB_USER', *'\\K[^']+" "\$WP_CONFIG_PATH")
-  DB_PASS=\$(grep -oP "define\\( *'DB_PASSWORD', *'\\K[^']+" "\$WP_CONFIG_PATH")
-
-  if [[ -z "\$DB_NAME" || -z "\$DB_USER" || -z "\$DB_PASS" ]]; then
-    echo "Error: Could not extract database details!"
-    exit 1
-  fi
-
-  echo "Database Name: \$DB_NAME"
-  echo "Dumping database \$DB_NAME..."
-
-  # Dump the database safely
-  mysqldump --single-transaction --quick --no-tablespaces -u"\$DB_USER" -p"\$DB_PASS" "\$DB_NAME" > "$BACKUP_PATH/$SQL_DUMP_FILE"
-
-  if [[ ! -f "$BACKUP_PATH/$SQL_DUMP_FILE" ]]; then
-    echo "Error: Failed to dump database!"
-    exit 1
-  fi
-
-  echo "Database dump created: $BACKUP_PATH/$SQL_DUMP_FILE"
 
   sleep 15
 
@@ -83,10 +98,15 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 
-scp -i "$SSH_KEY" "$SSH_USER@$SSH_HOST:$BACKUP_PATH/$SQL_DUMP_FILE" "$LOCAL_BACKUP_DIR/$FOLDER_NAME/"
-if [[ $? -ne 0 ]]; then
-  echo "Error downloading file: $SQL_DUMP_FILE"
-  exit 1
+# If --ignoredb was passed, don't download the SQL dump
+if [ "$IGNORE_DB" = false ]; then
+  scp -i "$SSH_KEY" "$SSH_USER@$SSH_HOST:$BACKUP_PATH/$SQL_DUMP_FILE" "$LOCAL_BACKUP_DIR/$FOLDER_NAME/"
+  if [[ $? -ne 0 ]]; then
+    echo "Error downloading file: $SQL_DUMP_FILE"
+    exit 1
+  fi
+else
+  echo "Skipping download of database dump as --ignoredb is passed."
 fi
 
 echo "Backup successfully downloaded to $LOCAL_BACKUP_DIR/$FOLDER_NAME/"
