@@ -1,6 +1,3 @@
-Here's a README.md for your script:
-
-```markdown
 # WordPress Backup Script for aaPanel
 
 This script is designed to make it easier to back up WordPress websites hosted on aaPanel without the need for the aaPanel premium plan. It performs a full backup of the WordPress site, including a tarball of the website files and an optional SQL dump of the WordPress database.
