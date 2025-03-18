@@ -58,7 +58,7 @@ ssh -i "$SSH_KEY" "$SSH_USER@$SSH_HOST" << EOF
   echo "Dumping database \$DB_NAME..."
 
   # Dump the database safely
-  mysqldump --single-transaction --quick -u"\$DB_USER" -p"\$DB_PASS" "\$DB_NAME" > "$BACKUP_PATH/$SQL_DUMP_FILE"
+  mysqldump --single-transaction --quick --no-tablespaces -u"\$DB_USER" -p"\$DB_PASS" "\$DB_NAME" > "$BACKUP_PATH/$SQL_DUMP_FILE"
 
   if [[ ! -f "$BACKUP_PATH/$SQL_DUMP_FILE" ]]; then
     echo "Error: Failed to dump database!"
@@ -66,6 +66,8 @@ ssh -i "$SSH_KEY" "$SSH_USER@$SSH_HOST" << EOF
   fi
 
   echo "Database dump created: $BACKUP_PATH/$SQL_DUMP_FILE"
+
+  sleep 15
 
   # Create the tar.gz backup of the website folder
   cd "$BACKUP_PATH"
